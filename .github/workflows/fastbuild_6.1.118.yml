@@ -122,6 +122,8 @@ jobs:
               source_repo_url="https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8650"
               source_branch="oneplus/sm8650_b_16.0.0_ace_3_pro"
               source_archive_root="android_kernel_common_oneplus_sm8650-oneplus-sm8650_b_16.0.0_ace_3_pro"
+              source_extra_repo_url="https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8650"
+              source_extra_branch="oneplus/sm8650_b_16.0.0_ace_3_pro"
               source_label="一加 Ace 3 Pro 6.1.118 ColorOS/OxygenOS 16 官方OKI源码"
               ;;
             *)
@@ -133,6 +135,8 @@ jobs:
           echo "SOURCE_REPO_URL=$source_repo_url" >> $GITHUB_ENV
           echo "SOURCE_BRANCH=$source_branch" >> $GITHUB_ENV
           echo "SOURCE_ARCHIVE_ROOT=$source_archive_root" >> $GITHUB_ENV
+          echo "SOURCE_EXTRA_REPO_URL=$source_extra_repo_url" >> $GITHUB_ENV
+          echo "SOURCE_EXTRA_BRANCH=$source_extra_branch" >> $GITHUB_ENV
           echo "SOURCE_LABEL=$source_label" >> $GITHUB_ENV
           echo "当前源码机型: ${{ github.event.inputs.source_device }}"
           echo "当前源码分支: $source_branch"
@@ -160,6 +164,11 @@ jobs:
           unzip -q common.zip && 
           mv "${{ env.SOURCE_ARCHIVE_ROOT }}" common &&
           rm -rf common.zip &
+
+          if [[ "${{ github.event.inputs.source_device }}" == "oneplus_ace3_pro_b" ]]; then
+            echo "正在克隆 Ace 3 Pro 附加 Oplus 模块源码..." &&
+            git clone --depth=1 --branch "${{ env.SOURCE_EXTRA_BRANCH }}" "${{ env.SOURCE_EXTRA_REPO_URL }}" modules &
+          fi
           
           echo "正在克隆llvm-Clang20工具链..." &&
           mkdir -p clang20 &&
@@ -173,6 +182,12 @@ jobs:
           rm -rf build-tools.zip &
           
           wait
+          if [[ "${{ github.event.inputs.source_device }}" == "oneplus_ace3_pro_b" ]]; then
+            mkdir -p common/drivers/soc/oplus
+            cp -r ./modules/vendor/oplus/kernel/cpu ./common/kernel/oplus_cpu
+            cp -r ./modules/vendor/oplus/kernel/storage ./common/drivers/soc/oplus/storage
+            cp -r ./modules/vendor/oplus/kernel/storage/storage_feature_in_module/common/oplus_resctrl ./common/drivers/soc/oplus/oplus_resctrl
+          fi
           echo "所有源码及llvm-Clang20工具链初始化完成！"
           echo "正在去除 ABI 保护 & 去除 dirty 后缀..."
           rm common/android/abi_gki_protected_exports_* || true
@@ -658,7 +673,7 @@ jobs:
           sudo rm -rf /usr/local/lib/android &
           sudo rm -rf /opt/ghc &
           sudo rm -rf /opt/hostedtoolcache/CodeQL &
-          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig &&
+          make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="ccache clang" LD="ld.lld" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
           make -j$(nproc --all) LLVM=1 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="$(pwd)/cc-wrapper" LD="$(pwd)/ld-wrapper" HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error Image
           
           # 编译后时间劫持二次校验

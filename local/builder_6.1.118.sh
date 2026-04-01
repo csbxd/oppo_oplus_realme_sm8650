@@ -22,6 +22,8 @@ case "$SOURCE_DEVICE" in
   oneplus_ace3_pro_b)
     SOURCE_REPO_URL="https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8650"
     SOURCE_BRANCH="oneplus/sm8650_b_16.0.0_ace_3_pro"
+    SOURCE_EXTRA_REPO_URL="https://github.com/OnePlusOSS/android_kernel_modules_and_devicetree_oneplus_sm8650"
+    SOURCE_EXTRA_BRANCH="oneplus/sm8650_b_16.0.0_ace_3_pro"
     SOURCE_LABEL="一加 Ace 3 Pro 6.1.118 ColorOS/OxygenOS 16 官方OKI源码"
     ;;
   *)
@@ -79,6 +81,9 @@ echo "适用机型: $MANIFEST"
 echo "源码机型: $SOURCE_DEVICE"
 echo "源码分支: $SOURCE_BRANCH"
 echo "源码说明: $SOURCE_LABEL"
+if [[ -n "$SOURCE_EXTRA_REPO_URL" ]]; then
+  echo "附加源码: $SOURCE_EXTRA_REPO_URL @ $SOURCE_EXTRA_BRANCH"
+fi
 echo "自定义内核后缀: -$CUSTOM_SUFFIX"
 echo "KSU分支版本: $KSU_TYPE"
 echo "启用susfs: $APPLY_SUSFS"
@@ -122,6 +127,13 @@ rm -rf kernel_workspace
 mkdir kernel_workspace
 cd kernel_workspace
 git clone --depth=1 "$SOURCE_REPO_URL" -b "$SOURCE_BRANCH" common
+if [[ "$SOURCE_DEVICE" == "oneplus_ace3_pro_b" ]]; then
+  git clone --depth=1 "$SOURCE_EXTRA_REPO_URL" -b "$SOURCE_EXTRA_BRANCH" modules
+  mkdir -p ./common/drivers/soc/oplus
+  cp -r ./modules/vendor/oplus/kernel/cpu ./common/kernel/oplus_cpu
+  cp -r ./modules/vendor/oplus/kernel/storage ./common/drivers/soc/oplus/storage
+  cp -r ./modules/vendor/oplus/kernel/storage/storage_feature_in_module/common/oplus_resctrl ./common/drivers/soc/oplus/oplus_resctrl
+fi
 echo ">>> 初始化仓库完成"
 
 # ===== 清除 abi 文件、去除 -dirty 后缀 =====
@@ -403,7 +415,8 @@ sed -i 's/check_defconfig//' ./common/build.config.gki
 # ===== 编译内核 =====
 echo ">>> 开始编译内核..."
 cd common
-make -j$(nproc --all) LLVM=-20 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig all
+make -j$(nproc --all) LLVM=-20 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error gki_defconfig
+make -j$(nproc --all) LLVM=-20 ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnuabeihf- CC=clang LD=ld.lld HOSTCC=clang HOSTLD=ld.lld O=out KCFLAGS+=-O2 KCFLAGS+=-Wno-error all
 echo ">>> 内核编译成功！"
 
 # ===== 选择使用 patch_linux (KPM补丁)=====
