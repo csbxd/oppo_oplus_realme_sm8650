@@ -6,11 +6,19 @@ env:
   KERNEL_VERSION: '6.1'
   SUB_VERSION: '118'
   KERNEL_NAME: 'android14-11-o-gca13bffobf09'
-  CCACHE_KEY: ccache-neov4-6.1.118
+  CCACHE_KEY_BASE: ccache-neov4-6.1.118
 
 on:
   workflow_dispatch:
     inputs:
+      source_device:
+        description: '6.1.118 源码机型(oneplus12_6.1.118=一加12 A15, oneplus_ace3_pro_b=一加Ace 3 Pro ColorOS/OxygenOS 16)'
+        required: true
+        type: choice
+        default: 'oneplus12_6.1.118'
+        options:
+          - 'oneplus12_6.1.118'
+          - 'oneplus_ace3_pro_b'
       ksu_type:
         description: 'KernelSU分支(ReSukiSU/SukiSU Ultra/KernelSU Next/KSU(原版)/无内置KSU,默认ReSukiSU)'
         required: true
@@ -101,6 +109,35 @@ jobs:
       actions: write
       contents: read
     steps:
+      - name: 选择 6.1.118 源码机型
+        run: |
+          case "${{ github.event.inputs.source_device }}" in
+            oneplus12_6.1.118)
+              source_repo_url="https://github.com/cctv18/android_kernel_common_oneplus_sm8650"
+              source_branch="oneplus/sm8650_v_15.0.0_oneplus12_6.1.118"
+              source_archive_root="android_kernel_common_oneplus_sm8650-oneplus-sm8650_v_15.0.0_oneplus12_6.1.118"
+              source_label="一加12 6.1.118 Android 15 官方OKI源码"
+              ;;
+            oneplus_ace3_pro_b)
+              source_repo_url="https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8650"
+              source_branch="oneplus/sm8650_b_16.0.0_ace_3_pro"
+              source_archive_root="android_kernel_common_oneplus_sm8650-oneplus-sm8650_b_16.0.0_ace_3_pro"
+              source_label="一加 Ace 3 Pro 6.1.118 ColorOS/OxygenOS 16 官方OKI源码"
+              ;;
+            *)
+              echo "::error::不支持的 source_device: ${{ github.event.inputs.source_device }}"
+              exit 1
+              ;;
+          esac
+          echo "SOURCE_DEVICE=${{ github.event.inputs.source_device }}" >> $GITHUB_ENV
+          echo "SOURCE_REPO_URL=$source_repo_url" >> $GITHUB_ENV
+          echo "SOURCE_BRANCH=$source_branch" >> $GITHUB_ENV
+          echo "SOURCE_ARCHIVE_ROOT=$source_archive_root" >> $GITHUB_ENV
+          echo "SOURCE_LABEL=$source_label" >> $GITHUB_ENV
+          echo "当前源码机型: ${{ github.event.inputs.source_device }}"
+          echo "当前源码分支: $source_branch"
+          echo "当前源码说明: $source_label"
+
       - name: 安装环境依赖+初始化源码仓库及llvm-Clang20工具链
         run: |
           rm -rf kernel_workspace
@@ -119,9 +156,9 @@ jobs:
           #sudo apt-get install -y --no-install-recommends curl bison flex make binutils git perl gcc python3 python-is-python3 bc libssl-dev libelf-dev zip unzip ccache
           
           echo "正在克隆源码仓库..."
-          aria2c -s16 -x16 -k1M https://github.com/cctv18/android_kernel_common_oneplus_sm8650/archive/refs/heads/oneplus/sm8650_b_16.0.0_oneplus12.zip -o common.zip && 
+          aria2c -s16 -x16 -k1M ${{ env.SOURCE_REPO_URL }}/archive/refs/heads/${{ env.SOURCE_BRANCH }}.zip -o common.zip &&
           unzip -q common.zip && 
-          mv "android_kernel_common_oneplus_sm8650-oneplus-sm8650_b_16.0.0_oneplus12" common &&
+          mv "${{ env.SOURCE_ARCHIVE_ROOT }}" common &&
           rm -rf common.zip &
           
           echo "正在克隆llvm-Clang20工具链..." &&
@@ -146,13 +183,17 @@ jobs:
 
       - name: 配置ccache目录
         run: |
-          echo "CCACHE_DIR=$HOME/.ccache_${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}" >> $GITHUB_ENV
+          echo "CCACHE_DIR=$HOME/.ccache_${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}_${{ github.event.inputs.source_device }}" >> $GITHUB_ENV
           echo "CCACHE_MAXSIZE=3G" >> $GITHUB_ENV
+          echo "CCACHE_KEY=${{ env.CCACHE_KEY_BASE }}-${{ github.event.inputs.source_device }}" >> $GITHUB_ENV
           echo "当前磁盘空间："
           df -h
           echo "当前构建内核版本：${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }}"
+          echo "当前源码机型：${{ github.event.inputs.source_device }}"
+          echo "当前源码分支：${{ env.SOURCE_BRANCH }}"
 
       - name: 载入当前版本内核的 ccache缓存
+        if: ${{ !inputs.ccache_update }}
         uses: actions/cache@v5
         id: ccache-restore
         with:
@@ -163,9 +204,15 @@ jobs:
             ${{ env.CCACHE_KEY }}-
 
       - name: 拉取公共预置 ccache 缓存
+        if: ${{ !inputs.ccache_update }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          if [[ "${{ github.event.inputs.source_device }}" != "oneplus12_6.1.118" ]]; then
+            echo "当前源码机型暂无可复用的公共预置 ccache，跳过拉取。"
+            exit 0
+          fi
+
           echo "检查本地缓存状态..."
           if [ -d "${{ env.CCACHE_DIR }}" ] && [ "$(ls -A ${{ env.CCACHE_DIR }} 2>/dev/null)" ]; then
             echo "检测到本地已成功载入 ccache 缓存，跳过公共 ccache 拉取！"
@@ -195,6 +242,8 @@ jobs:
           else
             echo "旧缓存不存在或已被清理！"
           fi
+          rm -rf "${{ env.CCACHE_DIR }}"
+          echo "已跳过本次缓存恢复，并清空本地 ccache 目录。"
       
       - name: 初始化并配置ccache
         run: |
@@ -702,6 +751,9 @@ jobs:
           echo "Commit: $GITHUB_SHA" >> ./ak3.log
           echo "Time: $TIME_NOW" >> ./ak3.log
           echo "Kernel Ver: $FULL_VERSION" >> ./ak3.log
+          echo "Source Device: ${{ env.SOURCE_DEVICE }}" >> ./ak3.log
+          echo "Source Branch: ${{ env.SOURCE_BRANCH }}" >> ./ak3.log
+          echo "Source Label: ${{ env.SOURCE_LABEL }}" >> ./ak3.log
           echo "KSU Branch: ${KSU_TYPENAME}" >> ./ak3.log
           echo "KSU Ver: ${KSUVER}" >> ./ak3.log
           echo "susfs: ${{ github.event.inputs.susfs_enable }}" >> ./ak3.log
@@ -774,6 +826,12 @@ jobs:
             KSU_TYPENAME="无内置KSU"
           fi
           echo "KSU_TYPENAME=$KSU_TYPENAME" >> $GITHUB_ENV
+          if [[ "${{ github.event.inputs.source_device }}" == "oneplus_ace3_pro_b" ]]; then
+            SOURCE_LABEL="一加 Ace 3 Pro 6.1.118 ColorOS/OxygenOS 16 官方OKI源码"
+          else
+            SOURCE_LABEL="一加12 6.1.118 Android 15 官方OKI源码"
+          fi
+          echo "SOURCE_LABEL=$SOURCE_LABEL" >> $GITHUB_ENV
          
       - name: 创建发布
         id: create_release
@@ -785,7 +843,8 @@ jobs:
             ### 📱 欧加真 ${{ env.KSU_TYPENAME }} SM8650 通用内核 | 构建信息
             - 内核版本号: ${{ env.FULL_VERSION }}
             - 编译时间: ${{ env.TIME_FORM }}
-            - 机型：欧加真骁龙8Gen3通用 ${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} 内核（基于一加12 ${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} Android 15 版官方OKI源码）
+            - 源码机型：${{ github.event.inputs.source_device }}
+            - 机型：欧加真骁龙8Gen3通用 ${{ env.KERNEL_VERSION }}.${{ env.SUB_VERSION }} 内核（基于${{ env.SOURCE_LABEL }}）
             - KSU分支：${{ env.KSU_TYPENAME }}
             - susfs支持：${{ github.event.inputs.susfs_enable }}
             - KPM支持 ：${{ github.event.inputs.kpm_enable }}

@@ -6,9 +6,30 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # ===== 设置自定义参数 =====
-echo "===== 欧加真SM8650通用6.1.118 A15 OKI内核本地编译脚本 By Coolapk@cctv18 ====="
+echo "===== 欧加真SM8650通用6.1.118 OKI内核本地编译脚本 By Coolapk@cctv18 ====="
 echo ">>> 读取用户配置..."
 MANIFEST=${MANIFEST:-oppo+oplus+realme}
+SOURCE_DEVICE=${SOURCE_DEVICE:-oneplus12_6.1.118}
+read -p "请选择 6.1.118 源码机型（oneplus12_6.1.118 / oneplus_ace3_pro_b，默认：${SOURCE_DEVICE}）: " SOURCE_DEVICE_INPUT
+SOURCE_DEVICE=${SOURCE_DEVICE_INPUT:-$SOURCE_DEVICE}
+
+case "$SOURCE_DEVICE" in
+  oneplus12_6.1.118)
+    SOURCE_REPO_URL="https://github.com/cctv18/android_kernel_common_oneplus_sm8650"
+    SOURCE_BRANCH="oneplus/sm8650_v_15.0.0_oneplus12_6.1.118"
+    SOURCE_LABEL="一加12 6.1.118 Android 15 官方OKI源码"
+    ;;
+  oneplus_ace3_pro_b)
+    SOURCE_REPO_URL="https://github.com/OnePlusOSS/android_kernel_common_oneplus_sm8650"
+    SOURCE_BRANCH="oneplus/sm8650_b_16.0.0_ace_3_pro"
+    SOURCE_LABEL="一加 Ace 3 Pro 6.1.118 ColorOS/OxygenOS 16 官方OKI源码"
+    ;;
+  *)
+    echo ">>> 不支持的 6.1.118 源码机型: $SOURCE_DEVICE"
+    exit 1
+    ;;
+esac
+
 read -p "请输入自定义内核后缀（默认：android14-11-o-gca13bffobf09）: " CUSTOM_SUFFIX
 CUSTOM_SUFFIX=${CUSTOM_SUFFIX:-android14-11-o-gca13bffobf09}
 read -p "是否启用susfs？(y/n，默认：y): " APPLY_SUSFS
@@ -55,6 +76,9 @@ fi
 echo
 echo "===== 配置信息 ====="
 echo "适用机型: $MANIFEST"
+echo "源码机型: $SOURCE_DEVICE"
+echo "源码分支: $SOURCE_BRANCH"
+echo "源码说明: $SOURCE_LABEL"
 echo "自定义内核后缀: -$CUSTOM_SUFFIX"
 echo "KSU分支版本: $KSU_TYPE"
 echo "启用susfs: $APPLY_SUSFS"
@@ -97,7 +121,7 @@ echo ">>> 初始化仓库..."
 rm -rf kernel_workspace
 mkdir kernel_workspace
 cd kernel_workspace
-git clone --depth=1 https://github.com/cctv18/android_kernel_common_oneplus_sm8650 -b oneplus/sm8650_v_15.0.0_oneplus12_6.1.118 common
+git clone --depth=1 "$SOURCE_REPO_URL" -b "$SOURCE_BRANCH" common
 echo ">>> 初始化仓库完成"
 
 # ===== 清除 abi 文件、去除 -dirty 后缀 =====
