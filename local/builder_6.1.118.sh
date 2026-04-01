@@ -130,13 +130,20 @@ git clone --depth=1 "$SOURCE_REPO_URL" -b "$SOURCE_BRANCH" common
 if [[ "$SOURCE_DEVICE" == "oneplus_ace3_pro_b" ]]; then
   git clone --depth=1 "$SOURCE_EXTRA_REPO_URL" -b "$SOURCE_EXTRA_BRANCH" modules
   mkdir -p ./common/drivers/soc/oplus
+  mkdir -p ./common/kernel/locking
   # The common repo exposes these paths as vendor symlinks, so replace them with real dirs.
   rm -rf ./common/kernel/oplus_cpu
   rm -rf ./common/drivers/soc/oplus/storage
   rm -rf ./common/drivers/soc/oplus/oplus_resctrl
+  rm -f ./common/kernel/locking/sa_common_struct.h
+  rm -f ./common/kernel/locking/oplus_locking.c
+  rm -f ./common/kernel/locking/locking_main.h
   cp -r ./modules/vendor/oplus/kernel/cpu ./common/kernel/oplus_cpu
   cp -r ./modules/vendor/oplus/kernel/storage ./common/drivers/soc/oplus/storage
   cp -r ./modules/vendor/oplus/kernel/storage/storage_feature_in_module/common/oplus_resctrl ./common/drivers/soc/oplus/oplus_resctrl
+  cp ./modules/vendor/oplus/kernel/cpu/sched/sched_assist/sa_common_struct.h ./common/kernel/locking/sa_common_struct.h
+  cp ./modules/vendor/oplus/kernel/synchronize/oplus_locking.c ./common/kernel/locking/oplus_locking.c
+  cp ./modules/vendor/oplus/kernel/synchronize/oplus_locking.h ./common/kernel/locking/locking_main.h
 fi
 echo ">>> 初始化仓库完成"
 
