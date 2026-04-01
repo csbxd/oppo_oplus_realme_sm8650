@@ -130,6 +130,10 @@ git clone --depth=1 "$SOURCE_REPO_URL" -b "$SOURCE_BRANCH" common
 if [[ "$SOURCE_DEVICE" == "oneplus_ace3_pro_b" ]]; then
   git clone --depth=1 "$SOURCE_EXTRA_REPO_URL" -b "$SOURCE_EXTRA_BRANCH" modules
   mkdir -p ./common/drivers/soc/oplus
+  # The common repo exposes these paths as vendor symlinks, so replace them with real dirs.
+  rm -rf ./common/kernel/oplus_cpu
+  rm -rf ./common/drivers/soc/oplus/storage
+  rm -rf ./common/drivers/soc/oplus/oplus_resctrl
   cp -r ./modules/vendor/oplus/kernel/cpu ./common/kernel/oplus_cpu
   cp -r ./modules/vendor/oplus/kernel/storage ./common/drivers/soc/oplus/storage
   cp -r ./modules/vendor/oplus/kernel/storage/storage_feature_in_module/common/oplus_resctrl ./common/drivers/soc/oplus/oplus_resctrl
