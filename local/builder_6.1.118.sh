@@ -144,8 +144,8 @@ if [[ "$SOURCE_DEVICE" == "oneplus_ace3_pro_b" ]]; then
   cp ./modules/vendor/oplus/kernel/cpu/sched/sched_assist/sa_common_struct.h ./common/kernel/locking/sa_common_struct.h
   cp ./modules/vendor/oplus/kernel/synchronize/oplus_locking.c ./common/kernel/locking/oplus_locking.c
   cp ./modules/vendor/oplus/kernel/synchronize/oplus_locking.h ./common/kernel/locking/locking_main.h
-  sed -i 's/} tracepoint_probes\\[\\] = {/} block_metrics_tracepoint_probes[] = {/' ./common/drivers/soc/oplus/storage/common/io_metrics/block_metrics.c
-  sed -i 's/} tracepoint_probes\\[\\] = {/} iocost_tracepoint_probes[] = {/' ./common/drivers/soc/oplus/oplus_resctrl/iocost.c
+  sed -i 's/} tracepoint_probes\[\] = {/} block_metrics_tracepoint_probes[] = {/' ./common/drivers/soc/oplus/storage/common/io_metrics/block_metrics.c
+  sed -i 's/} tracepoint_probes\[\] = {/} iocost_tracepoint_probes[] = {/' ./common/drivers/soc/oplus/oplus_resctrl/iocost.c
 fi
 echo ">>> 初始化仓库完成"
 
