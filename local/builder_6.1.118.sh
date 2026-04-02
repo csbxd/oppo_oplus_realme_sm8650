@@ -52,8 +52,15 @@ read -p "是否启用三星SSG IO调度器？(y/n，默认：y): " APPLY_SSG
 APPLY_SSG=${APPLY_SSG:-y}
 read -p "是否启用Re-Kernel？(y/n，默认：n): " APPLY_REKERNEL
 APPLY_REKERNEL=${APPLY_REKERNEL:-n}
+read -p "是否启用 DroidSpaces 支持？(y/n，默认：n): " APPLY_DROIDSPACES
+APPLY_DROIDSPACES=${APPLY_DROIDSPACES:-n}
 read -p "是否启用内核级基带保护？(y/n，默认：y): " APPLY_BBG
 APPLY_BBG=${APPLY_BBG:-y}
+
+if [[ "$APPLY_DROIDSPACES" == [yY] && "$APPLY_BBG" == [yY] ]]; then
+  echo ">>> DroidSpaces 与内核级基带保护互斥，已自动关闭基带保护。"
+  APPLY_BBG=n
+fi
 
 if [[ "$KSU_BRANCH" == "y" || "$KSU_BRANCH" == "Y" ]]; then
   KSU_TYPE="SukiSU Ultra"
@@ -94,6 +101,7 @@ echo "应用网络功能增强优化配置: $APPLY_BETTERNET"
 echo "应用 BBR 等算法: $APPLY_BBR"
 echo "启用三星SSG IO调度器: $APPLY_SSG"
 echo "启用Re-Kernel: $APPLY_REKERNEL"
+echo "启用DroidSpaces: $APPLY_DROIDSPACES"
 echo "启用内核级基带保护: $APPLY_BBG"
 echo "===================="
 echo
@@ -296,6 +304,26 @@ else
   cd "$WORKDIR/kernel_workspace"
 fi
 
+# ===== 注入 DroidSpaces 补丁 =====
+if [[ "$APPLY_DROIDSPACES" == "y" || "$APPLY_DROIDSPACES" == "Y" ]]; then
+  echo ">>> 正在注入 DroidSpaces 内核补丁..."
+  cd "$WORKDIR/kernel_workspace/common"
+  curl -fsSLo '01.6.1+_disable_crc_checks_for_lkms.patch' \
+    'https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/GKI/01.6.1+_disable_crc_checks_for_lkms.patch'
+  curl -fsSLo '02.fix_restore cgroup file prefix handling .patch' \
+    'https://raw.githubusercontent.com/ravindu644/Droidspaces-OSS/main/Documentation/resources/kernel-patches/GKI/02.fix_restore%20cgroup%20file%20prefix%20handling%20.patch'
+  # 当前 6.1 源码树的 mqueue 已不再依赖 user_struct.mq_bytes，因此不应用 patch 03。
+  curl -fsSLo '04.use_android_abi_padding_for_sysvipc_task_struct.patch' \
+    'https://raw.githubusercontent.com/natsumerinchan/GKI_KernelSU_SUSFS/new/lxc_docker_patches/a14-6.1/gki_use_Android_ABI_padding_for_SYSVIPC_task_struct_fields.patch'
+  patch -p1 -N -F 3 < '01.6.1+_disable_crc_checks_for_lkms.patch' || true
+  patch -p1 -N -F 3 < '02.fix_restore cgroup file prefix handling .patch' || true
+  patch -p1 -N -F 3 < '04.use_android_abi_padding_for_sysvipc_task_struct.patch' || true
+  cd "$WORKDIR/kernel_workspace"
+else
+  echo ">>> 跳过 DroidSpaces 补丁..."
+  cd "$WORKDIR/kernel_workspace"
+fi
+
 # ===== 添加 defconfig 配置项 =====
 echo ">>> 添加 defconfig 配置项..."
 DEFCONFIG_FILE=./common/arch/arm64/configs/gki_defconfig
@@ -345,6 +373,25 @@ CONFIG_CRYPTO_LZ4KD=y
 CONFIG_CRYPTO_842=y
 EOF
 
+fi
+
+if [[ "$APPLY_DROIDSPACES" == "y" || "$APPLY_DROIDSPACES" == "Y" ]]; then
+  cat >> "$DEFCONFIG_FILE" <<EOF
+CONFIG_SYSCTL=y
+CONFIG_SYSVIPC=y
+CONFIG_POSIX_MQUEUE=y
+CONFIG_NAMESPACES=y
+CONFIG_PID_NS=y
+CONFIG_IPC_NS=y
+CONFIG_UTS_NS=y
+CONFIG_USER_NS=y
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+CONFIG_CGROUPS=y
+CONFIG_CGROUP_DEVICE=y
+CONFIG_CGROUP_PIDS=y
+CONFIG_MEMCG=y
+EOF
 fi
 
 # ===== 启用网络功能增强优化配置 =====
@@ -412,7 +459,7 @@ if [[ "$APPLY_REKERNEL" == "y" || "$APPLY_REKERNEL" == "Y" ]]; then
 fi
 
 # ===== 启用内核级基带保护 =====
-if [[ "$APPLY_BBG" == "y" || "$APPLY_BBG" == "Y" ]]; then
+if [[ "$APPLY_BBG" == "y" || "$APPLY_BBG" == "Y" ]] && [[ "$APPLY_DROIDSPACES" != "y" && "$APPLY_DROIDSPACES" != "Y" ]]; then
   echo ">>> 正在启用内核级基带保护..."
   echo "CONFIG_BBG=y" >> "$DEFCONFIG_FILE"
   cd ./common
@@ -491,6 +538,9 @@ if [[ "$APPLY_LZ4KD" == "y" || "$APPLY_LZ4KD" == "Y" ]]; then
 fi
 if [[ "$APPLY_LZ4" == "y" || "$APPLY_LZ4" == "Y" ]]; then
   ZIP_NAME="${ZIP_NAME}-lz4-zstd"
+fi
+if [[ "$APPLY_DROIDSPACES" == "y" || "$APPLY_DROIDSPACES" == "Y" ]]; then
+  ZIP_NAME="${ZIP_NAME}-droidspaces"
 fi
 if [[ "$USE_PATCH_LINUX" == [bBkK] ]]; then
   ZIP_NAME="${ZIP_NAME}-kpm"
